@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
 // Initialize the Socket.IO client
-const socket = io("http://localhost:4000");
+const socket = io("https://whiteboard-lvj0.onrender.com");
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
