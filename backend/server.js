@@ -26,9 +26,17 @@ io.on("connection", (socket) => {
   socket.on("draw", (data) => {
     // Store the drawing data
     drawingData.push(data);
-
     // Broadcast the new drawing data to all other clients
     socket.broadcast.emit("draw", data);
+  });
+
+  // Listen for new drawing data
+  socket.on("reset", (data) => {
+    // Store the drawing data
+    drawingData = data;
+    
+    // Broadcast the new drawing data to all other clients
+    socket.broadcast.emit("reset", data);
   });
 
   socket.on("disconnect", () => {

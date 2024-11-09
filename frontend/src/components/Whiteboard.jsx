@@ -17,7 +17,7 @@ const Whiteboard = () => {
   const [showSidebar, setShowSidebar] = useState(false);
   const [showSidebarText, setShowSidebarText] = useState(false);
 
-  const socket = useRef(io(SERVER_URL)); // server URL
+  const socket = useRef(null); // server URL
 
   const drawings = useRef([]); // Array to hold all drawing objects for persistence
   const currentPath = useRef([]); // Array to hold points for the current free draw path
@@ -27,6 +27,7 @@ const Whiteboard = () => {
   const redoStack = useRef([]);
 
   useEffect(() => {
+    socket.current = io(SERVER_URL);
     const ctx = canvasRef.current.getContext("2d");
 
     // Load previous drawings on connection
@@ -37,12 +38,19 @@ const Whiteboard = () => {
 
     // Listen for incoming drawing data
     socket.current.on("draw", (data) => {
+      console.log(data);
       if (data.tool === TOOLS.PENCIL) {
         currentPath.current = data.path; // Redraw the free draw path
       } else {
         drawings.current.push(data);
       }
       drawOnCanvas(data, ctx);
+    });
+
+    // Listen for incoming drawing data
+    socket.current.on("reset", (data) => {
+      drawings.current = data;
+      redrawCanvas()
     });
 
     return () => {
@@ -264,7 +272,37 @@ const Whiteboard = () => {
   const redrawCanvas = (ctx = canvasRef.current.getContext("2d")) => {
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); // Clear canvas
     drawings.current.forEach((data) => drawOnCanvas(data, ctx)); // Redraw all saved drawings
-    socket.current.emit("draw", drawings.current);
+  };
+
+  // Undo function
+  const undo = () => {
+    const lastDrawing = undoStack.current.pop();
+    if (lastDrawing) {
+      redoStack.current.push(lastDrawing); // Push to redo stack
+      drawings.current.pop(); // Remove from drawings array
+    }
+    socket.current.emit("reset", drawings.current);
+    redrawCanvas();
+  };
+
+  // Redo function
+  const redo = () => {
+    const lastUndone = redoStack.current.pop();
+    if (lastUndone) {
+      undoStack.current.push(lastUndone); // Push to undo stack
+      drawings.current.push(lastUndone); // Re-add to drawings array
+    }
+    socket.current.emit("reset", drawings.current);
+    redrawCanvas();
+  };
+
+  // Reset canvas
+  const resetCanvas = () => {
+    drawings.current = [];
+    undoStack.current = [];
+    redoStack.current = [];
+    socket.current.emit("reset", drawings.current);
+    redrawCanvas();
   };
 
   return (
@@ -276,7 +314,9 @@ const Whiteboard = () => {
         drawings={drawings}
         undoStack={undoStack}
         redoStack={redoStack}
-        redrawCanvas={redrawCanvas}
+        undo={undo}
+        redo={redo}
+        resetCanvas={resetCanvas}
         ref={canvasRef}
       />
       <Sidebar

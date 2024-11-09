@@ -1,31 +1,3 @@
-// Undo function
-export const undo = (drawings, undoStack, redoStack, redrawCanvas) => {
-  const lastDrawing = undoStack.current.pop();
-  if (lastDrawing) {
-    redoStack.current.push(lastDrawing); // Push to redo stack
-    drawings.current.pop(); // Remove from drawings array
-    redrawCanvas();
-  }
-};
-
-// Redo function
-export const redo = (drawings, undoStack, redoStack, redrawCanvas) => {
-  const lastUndone = redoStack.current.pop();
-  if (lastUndone) {
-    undoStack.current.push(lastUndone); // Push to undo stack
-    drawings.current.push(lastUndone); // Re-add to drawings array
-    redrawCanvas();
-  }
-};
-
-// Reset canvas
-export const resetCanvas = (drawings, undoStack, redoStack, redrawCanvas) => {
-  drawings.current = [];
-  undoStack.current = [];
-  redoStack.current = [];
-  redrawCanvas();
-};
-
 export const downloadImage = (canvasRef) => {
   const canvas = canvasRef.current;
   const ctx = canvas.getContext("2d");

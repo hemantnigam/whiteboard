@@ -1,5 +1,5 @@
 import React, { forwardRef } from "react";
-import { downloadImage, redo, resetCanvas, undo } from "../utils/tools";
+import { downloadImage } from "../utils/tools";
 import Button from "./Button";
 import { GoPencil } from "react-icons/go";
 import { PiRectangle } from "react-icons/pi";
@@ -15,21 +15,9 @@ import { TOOLS } from "../constants/tools";
 
 const Toolbar = forwardRef(
   (
-    {
-      drawings,
-      undoStack,
-      redoStack,
-      setTool,
-      setShowSidebar,
-      setShowSidebarText,
-      redrawCanvas,
-    },
+    { setTool, setShowSidebar, setShowSidebarText, undo, redo, resetCanvas },
     ref
   ) => {
-    const onClickUtilHandler = (utilFn) => {
-      utilFn(drawings, undoStack, redoStack, redrawCanvas);
-    };
-
     const onClickHandler = (text) => {
       setTool(text);
       setShowSidebar(true);
@@ -58,13 +46,13 @@ const Toolbar = forwardRef(
         <Button onClick={() => onClickHandler(TOOLS.TEXT)}>
           <MdOutlineFormatColorText />
         </Button>
-        <Button onClick={() => onClickUtilHandler(resetCanvas)}>
+        <Button onClick={() => resetCanvas()}>
           <GrPowerReset />
         </Button>
-        <Button onClick={() => onClickUtilHandler(undo)}>
+        <Button onClick={() => undo()}>
           <FaUndo />
         </Button>
-        <Button onClick={() => onClickUtilHandler(redo)}>
+        <Button onClick={() => redo()}>
           <FaRedo />
         </Button>
         <Button onClick={() => downloadImage(ref)}>
