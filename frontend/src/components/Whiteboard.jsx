@@ -1,87 +1,291 @@
 import React, { useRef, useEffect, useState } from "react";
 import { io } from "socket.io-client";
-
-// Initialize the Socket.IO client
-const socket = io("https://whiteboard-lvj0.onrender.com");
+import Toolbar from "./Toolbar";
+import Canvas from "./Canvas";
+import Sidebar from "./Sidebar";
+import { TOOLS } from "../constants/tools";
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
-  const contextRef = useRef(null);
+  const [tool, setTool] = useState(TOOLS.PENCIL);
+  const [lineWidth, setLineWidth] = useState(2);
+  const [color, setColor] = useState("#000000");
+  const [fontSize, setFontSize] = useState(20); // New state for text size
   const [isDrawing, setIsDrawing] = useState(false);
+  const [text, setText] = useState("");
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [showSidebarText, setShowSidebarText] = useState(false);
+
+  const socket = useRef(io("https://whiteboard-lvj0.onrender.com")); // Replace with server URL
+
+  const drawings = useRef([]); // Array to hold all drawing objects for persistence
+  const currentPath = useRef([]); // Array to hold points for the current free draw path
+
+  // Stacks for undo and redo
+  const undoStack = useRef([]);
+  const redoStack = useRef([]);
 
   useEffect(() => {
-    // Set up the canvas context
-    const canvas = canvasRef.current;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    canvas.style.width = `${window.innerWidth}px`;
-    canvas.style.height = `${window.innerHeight}px`;
+    const ctx = canvasRef.current.getContext("2d");
 
-    const context = canvas.getContext("2d");
-    context.lineCap = "round";
-    context.strokeStyle = "black";
-    context.lineWidth = 5;
-    contextRef.current = context;
-
-    // Load previous drawing data on initial connection
-    socket.on("load-drawing", (drawingData) => {
-      drawingData.forEach((data) => {
-        const { x0, y0, x1, y1 } = data;
-        drawLine(x0, y0, x1, y1, false);
-      });
+    // Load previous drawings on connection
+    socket.current.on("load-drawing", (drawingData) => {
+      drawings.current = drawingData;
+      redrawCanvas(ctx);
     });
 
-    // Listen for new drawing data from other users
-    socket.on("draw", ({ x0, y0, x1, y1 }) => {
-      drawLine(x0, y0, x1, y1, false);
+    // Listen for incoming drawing data
+    socket.current.on("draw", (data) => {
+      if (data.tool === TOOLS.PENCIL) {
+        currentPath.current = data.path; // Redraw the free draw path
+      } else {
+        drawings.current.push(data);
+      }
+      drawOnCanvas(data, ctx);
     });
 
     return () => {
-      socket.off("load-drawing");
-      socket.off("draw");
+      socket.current.disconnect();
     };
   }, []);
 
-  const drawLine = (x0, y0, x1, y1, emit) => {
-    contextRef.current.beginPath();
-    contextRef.current.moveTo(x0, y0);
-    contextRef.current.lineTo(x1, y1);
-    contextRef.current.stroke();
-    contextRef.current.closePath();
-
-    if (!emit) return;
-    socket.emit("draw", { x0, y0, x1, y1 });
-  };
-
-  const handleMouseDown = (e) => {
+  const handleDrawStart = (e) => {
+    const { offsetX, offsetY } = e.nativeEvent;
     setIsDrawing(true);
-    const { offsetX, offsetY } = e.nativeEvent;
-    contextRef.current.x = offsetX;
-    contextRef.current.y = offsetY;
+    setStartPos({ x: offsetX, y: offsetY });
+
+    if (tool === TOOLS.PENCIL) {
+      currentPath.current = [{ x: offsetX, y: offsetY }];
+    } else if (tool === TOOLS.TEXT) {
+      const textData = {
+        tool,
+        color,
+        lineWidth,
+        fontSize,
+        text,
+        x: offsetX,
+        y: offsetY,
+      };
+      drawings.current.push(textData);
+      undoStack.current.push(textData);
+      drawOnCanvas(textData);
+      socket.current.emit("draw", textData);
+    }
   };
 
-  const handleMouseMove = (e) => {
-    if (!isDrawing) return;
+  const handleDrawMove = (e) => {
+    if (!isDrawing || tool === TOOLS.TEXT) return;
     const { offsetX, offsetY } = e.nativeEvent;
-    const { x, y } = contextRef.current;
+    const ctx = canvasRef.current.getContext("2d");
 
-    drawLine(x, y, offsetX, offsetY, true);
-    contextRef.current.x = offsetX;
-    contextRef.current.y = offsetY;
+    if (tool === TOOLS.PENCIL) {
+      currentPath.current.push({ x: offsetX, y: offsetY }); // Add each point to the path
+      redrawCanvas(ctx); // Redraw everything on each move
+      drawOnCanvas(
+        { tool: TOOLS.PENCIL, color, lineWidth, path: currentPath.current },
+        ctx,
+        true
+      ); // Smooth free draw
+    } else if (
+      [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.LINE, TOOLS.RHOMBUS, TOOLS.ARROW].includes(tool)
+    ) {
+      redrawCanvas(ctx); // Clear canvas and redraw previous drawings for a temporary shape preview
+      drawOnCanvas(
+        {
+          tool,
+          color,
+          lineWidth,
+          x: startPos.x,
+          y: startPos.y,
+          endX: offsetX,
+          endY: offsetY,
+        },
+        ctx,
+        true
+      );
+    }
   };
 
-  const handleMouseUp = () => {
+  const handleDrawEnd = (e) => {
     setIsDrawing(false);
+    const { offsetX, offsetY } = e.nativeEvent;
+
+    if (tool === TOOLS.PENCIL && currentPath.current.length) {
+      const pathData = {
+        tool: TOOLS.PENCIL,
+        color,
+        lineWidth,
+        path: [...currentPath.current],
+      };
+      drawings.current.push(pathData);
+      socket.current.emit("draw", pathData);
+      currentPath.current = [];
+      undoStack.current.push(pathData); // Save to undo stack
+      redoStack.current = []; // Clear redo stack on new action
+    } else if (
+      [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.LINE, TOOLS.RHOMBUS, TOOLS.ARROW].includes(tool)
+    ) {
+      const shapeData = {
+        tool,
+        color,
+        lineWidth,
+        x: startPos.x,
+        y: startPos.y,
+        endX: offsetX,
+        endY: offsetY,
+      };
+      drawings.current.push(shapeData);
+      socket.current.emit("draw", shapeData);
+      undoStack.current.push(shapeData); // Save to undo stack
+      redoStack.current = []; // Clear redo stack on new action
+      redrawCanvas();
+    }
+  };
+
+  const drawArrow = (x, y, endX, endY, ctx) => {
+    const angle = Math.atan2(endY - y, endX - x);
+    const length = Math.sqrt((endX - x) ** 2 + (endY - y) ** 2);
+    const arrowHeadLength = 10; // Length of the arrow head
+    const arrowAngle = Math.PI / 6; // Angle for the arrow head
+
+    ctx.moveTo(x, y);
+    ctx.lineTo(endX, endY); // Draw the main line of the arrow
+
+    // Draw arrowhead
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - arrowHeadLength * Math.cos(angle - arrowAngle),
+      endY - arrowHeadLength * Math.sin(angle - arrowAngle)
+    );
+
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - arrowHeadLength * Math.cos(angle + arrowAngle),
+      endY - arrowHeadLength * Math.sin(angle + arrowAngle)
+    );
+    ctx.stroke();
+  };
+
+  const drawRhombus = (x, y, endX, endY, ctx) => {
+    const width = endX - x;
+    const height = endY - y;
+
+    const topX = x + width / 2;
+    const topY = y;
+    const rightX = x + width;
+    const rightY = y + height / 2;
+    const bottomX = x + width / 2;
+    const bottomY = y + height;
+    const leftX = x;
+    const leftY = y + height / 2;
+
+    ctx.beginPath();
+    ctx.moveTo(topX, topY);
+    ctx.lineTo(rightX, rightY);
+    ctx.lineTo(bottomX, bottomY);
+    ctx.lineTo(leftX, leftY);
+    ctx.closePath();
+    ctx.stroke();
+  };
+
+  const drawOnCanvas = (
+    data,
+    ctx = canvasRef.current.getContext("2d"),
+    isTemporary = false
+  ) => {
+    
+    ctx.lineWidth = data.lineWidth;
+    ctx.strokeStyle = data.color;
+    ctx.fillStyle = data.color;
+    ctx.beginPath();
+
+    if (data.tool === TOOLS.PENCIL) {
+      // Draw smooth line by connecting each point in the path
+      data.path.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.stroke();
+    } else {
+      switch (data.tool) {
+        case TOOLS.RECTANGLE:
+          ctx.strokeRect(
+            data.x,
+            data.y,
+            data.endX - data.x,
+            data.endY - data.y
+          );
+          break;
+        case TOOLS.CIRCLE:
+          const radius = Math.sqrt(
+            (data.endX - data.x) ** 2 + (data.endY - data.y) ** 2
+          );
+          ctx.arc(data.x, data.y, radius, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case TOOLS.LINE:
+          ctx.moveTo(data.x, data.y);
+          ctx.lineTo(data.endX, data.endY);
+          ctx.stroke();
+          break;
+        case TOOLS.ARROW:
+          drawArrow(data.x, data.y, data.endX, data.endY, ctx);
+          break;
+        case TOOLS.RHOMBUS:
+          drawRhombus(data.x, data.y, data.endX, data.endY, ctx);
+          break;
+        case TOOLS.TEXT:
+          ctx.font = `${data.fontSize}px Arial`; // Use font size for text
+          ctx.fillText(data.text, data.x, data.y);
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (!isTemporary) ctx.closePath();
+  };
+
+  const redrawCanvas = (ctx = canvasRef.current.getContext("2d")) => {
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); // Clear canvas
+    drawings.current.forEach((data) => drawOnCanvas(data, ctx)); // Redraw all saved drawings
   };
 
   return (
-    <canvas
-      ref={canvasRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      style={{ border: "1px solid #000" }}
-    />
+    <div className="whiteboard">
+      {/* <div className="toolbar"> */}
+      <Toolbar
+        setTool={setTool}
+        setShowSidebar={setShowSidebar}
+        setShowSidebarText={setShowSidebarText}
+        drawings={drawings}
+        undoStack={undoStack}
+        redoStack={redoStack}
+        redrawCanvas={redrawCanvas}
+        ref={canvasRef}
+      />
+      <Sidebar
+        lineWidth={lineWidth}
+        color={color}
+        setLineWidth={setLineWidth}
+        setColor={setColor}
+        setText={setText}
+        fontSize={fontSize}
+        showSidebar={showSidebar}
+        showSidebarText={showSidebarText}
+        setFontSize={setFontSize}
+      />
+      <Canvas
+        ref={canvasRef}
+        onMouseDown={handleDrawStart}
+        onMouseMove={handleDrawMove}
+        onMouseUp={handleDrawEnd}
+      />
+    </div>
   );
 };
 
