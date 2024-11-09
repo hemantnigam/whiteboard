@@ -7,3 +7,6 @@ export const TOOLS = {
   ARROW: "arrow",
   TEXT: "text",
 };
+
+export const DEFAULT_COLOR = "#000000";
+export const SERVER_URL = "https://whiteboard-lvj0.onrender.com";

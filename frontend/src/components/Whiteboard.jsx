@@ -3,21 +3,21 @@ import { io } from "socket.io-client";
 import Toolbar from "./Toolbar";
 import Canvas from "./Canvas";
 import Sidebar from "./Sidebar";
-import { TOOLS } from "../constants/tools";
+import { DEFAULT_COLOR, SERVER_URL, TOOLS } from "../constants/tools";
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
   const [tool, setTool] = useState(TOOLS.PENCIL);
   const [lineWidth, setLineWidth] = useState(2);
-  const [color, setColor] = useState("#000000");
-  const [fontSize, setFontSize] = useState(20); // New state for text size
+  const [color, setColor] = useState(DEFAULT_COLOR);
+  const [fontSize, setFontSize] = useState(20);
   const [isDrawing, setIsDrawing] = useState(false);
   const [text, setText] = useState("");
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [showSidebar, setShowSidebar] = useState(false);
   const [showSidebarText, setShowSidebarText] = useState(false);
 
-  const socket = useRef(io("https://whiteboard-lvj0.onrender.com")); // Replace with server URL
+  const socket = useRef(io(SERVER_URL)); // server URL
 
   const drawings = useRef([]); // Array to hold all drawing objects for persistence
   const currentPath = useRef([]); // Array to hold points for the current free draw path
@@ -88,7 +88,13 @@ const Whiteboard = () => {
         true
       ); // Smooth free draw
     } else if (
-      [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.LINE, TOOLS.RHOMBUS, TOOLS.ARROW].includes(tool)
+      [
+        TOOLS.RECTANGLE,
+        TOOLS.CIRCLE,
+        TOOLS.LINE,
+        TOOLS.RHOMBUS,
+        TOOLS.ARROW,
+      ].includes(tool)
     ) {
       redrawCanvas(ctx); // Clear canvas and redraw previous drawings for a temporary shape preview
       drawOnCanvas(
@@ -124,7 +130,13 @@ const Whiteboard = () => {
       undoStack.current.push(pathData); // Save to undo stack
       redoStack.current = []; // Clear redo stack on new action
     } else if (
-      [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.LINE, TOOLS.RHOMBUS, TOOLS.ARROW].includes(tool)
+      [
+        TOOLS.RECTANGLE,
+        TOOLS.CIRCLE,
+        TOOLS.LINE,
+        TOOLS.RHOMBUS,
+        TOOLS.ARROW,
+      ].includes(tool)
     ) {
       const shapeData = {
         tool,
@@ -194,7 +206,6 @@ const Whiteboard = () => {
     ctx = canvasRef.current.getContext("2d"),
     isTemporary = false
   ) => {
-    
     ctx.lineWidth = data.lineWidth;
     ctx.strokeStyle = data.color;
     ctx.fillStyle = data.color;
@@ -257,7 +268,6 @@ const Whiteboard = () => {
 
   return (
     <div className="whiteboard">
-      {/* <div className="toolbar"> */}
       <Toolbar
         setTool={setTool}
         setShowSidebar={setShowSidebar}
