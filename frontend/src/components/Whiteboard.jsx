@@ -264,6 +264,7 @@ const Whiteboard = () => {
   const redrawCanvas = (ctx = canvasRef.current.getContext("2d")) => {
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); // Clear canvas
     drawings.current.forEach((data) => drawOnCanvas(data, ctx)); // Redraw all saved drawings
+    socket.current.emit("draw", drawings.current);
   };
 
   return (
