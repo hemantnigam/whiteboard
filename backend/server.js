@@ -9,8 +9,7 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "https://resonant-kataifi-726e09.netlify.app/",
-    credentials: true
+    origin: "*"
   },
 });
 
