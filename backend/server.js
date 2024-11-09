@@ -7,32 +7,37 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "https://resonant-kataifi-726e09.netlify.app/",
+    methods: ["GET", "POST"],
+  },
+});
 
 // Array to store drawing data
 let drawingData = [];
 
 io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+  console.log("User connected:", socket.id);
 
-    // Send the current drawing data to the new user
-    socket.emit("load-drawing", drawingData);
+  // Send the current drawing data to the new user
+  socket.emit("load-drawing", drawingData);
 
-    // Listen for new drawing data
-    socket.on("draw", (data) => {
-        // Store the drawing data
-        drawingData.push(data);
+  // Listen for new drawing data
+  socket.on("draw", (data) => {
+    // Store the drawing data
+    drawingData.push(data);
 
-        // Broadcast the new drawing data to all other clients
-        socket.broadcast.emit("draw", data);
-    });
+    // Broadcast the new drawing data to all other clients
+    socket.broadcast.emit("draw", data);
+  });
 
-    socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id);
-    });
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
