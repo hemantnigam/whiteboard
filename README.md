@@ -2,6 +2,10 @@
 
 A real-time collaborative whiteboard application where multiple users can draw on a shared canvas simultaneously. Built with **HTML5 Canvas**, **React**, **Socket.IO**, and **Next.js**, this application enables users to see each other’s drawings as they happen and includes a variety of tools for enhanced usability.
 
+## Demo
+
+Access the live demo of the application here: [Collaborative Whiteboard Demo](https://resonant-kataifi-726e09.netlify.app/)
+
 ## Features
 
 - **Real-Time Collaboration**: Allows multiple users to draw on the same canvas and see each other's changes in real time.
